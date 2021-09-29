@@ -5,3 +5,8 @@ proc-macro = true
 name = "worm_derive"
 version = "0.1.0"
 edition = "2018"
+
+[dependencies]
+darling = "0.13"
+quote = "1"
+syn = "1"
