@@ -8,5 +8,6 @@ edition = "2018"
 
 [dependencies]
 darling = "0.13"
+dotenv = "0.15"
 quote = "1"
 syn = "1"

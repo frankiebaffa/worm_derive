@@ -14,6 +14,50 @@ use {
 
     },
 };
+#[derive(FromDeriveInput)]
+#[darling(attributes(wormdb))]
+struct WormDbOpts {
+    ident: syn::Ident,
+}
+#[proc_macro_derive(WormDb)]
+pub fn derive_wormdb(input: TokenStream) -> TokenStream {
+    match dotenv::dotenv() {
+        Ok(_) => {},
+        Err(_) => {},
+    }
+    let dbs = match std::env::var("WORMDBS") {
+        Ok(dbs) => dbs,
+        Err(_) => panic!("Failed to construct wormdb, environment variable WORMDBS not found"),
+    };
+    let d_input = parse_macro_input!(input as DeriveInput);
+    let wormdb = WormDbOpts::from_derive_input(&d_input).unwrap();
+    let db_split = dbs.split(",");
+    let mut names = Vec::new();
+    let mut paths = Vec::new();
+    for mut db_data in db_split {
+        db_data = db_data.trim();
+        let mut name_path = db_data.split("@");
+        let name = name_path.nth(0).expect("Failed to get name of wormdb, environment variable is in improper format");
+        let path = name_path.nth(0).expect("Failed to get path of wormdb, environment variable is in improper format");
+        names.push(name.trim().to_string());
+        paths.push(path.trim().to_string())
+    }
+    let ident = wormdb.ident;
+    let implementation = quote! {
+        impl #ident {
+            pub fn init() -> #ident {
+                use worm::structs::database::DbContext as WormContext;
+                use worm::structs::database::DbObject as WormObject;
+                use rusqlite::Connection as WormConnection;
+                let mut c = WormConnection::open(":memory:").unwrap();
+                let dbs = vec![ #(WormObject::new(#paths, #names), )*];
+                let ctx = WormContext::new(c, dbs);
+                return #ident { context: ctx, };
+            }
+        }
+    };
+    implementation.into()
+}
 #[derive(Default, Debug, FromMeta)]
 struct DbModelColumn {
     name: String,
