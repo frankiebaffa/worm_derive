@@ -20,6 +20,8 @@ use {
 #[derive(Default, Debug, FromMeta)]
 struct DbModelColumn {
     name: String,
+    #[darling(default)]
+    active_flag: bool,
 }
 #[derive(FromField)]
 #[darling(attributes(dbcolumn))]
@@ -32,7 +34,6 @@ struct DbModelTable {
     db: String,
     name: String,
     alias: String,
-    bool_flag: Option<String>,
 }
 #[derive(FromDeriveInput)]
 #[darling(attributes(dbmodel))]
@@ -52,9 +53,9 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
     let mut columns = Vec::new();
     let mut idents = Vec::new();
     let mut vars = Vec::new();
-    let mut bool_flag_ident = None;
-    let bool_flag = opts.table.bool_flag;
     let data = opts.data.take_struct().unwrap();
+    let mut has_active_flag = false;
+    let mut active = None;
     for field in data {
         let ident = field.ident.unwrap();
         let column = field.column;
@@ -62,14 +63,15 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         columns.push(column.name.clone());
         idents.push(ident.clone());
         vars.push(var);
-        if !bool_flag.is_some() {
-            let bool_flag_res = bool_flag.clone().unwrap();
-            if bool_flag_res.eq(&column.name.clone()) {
-                bool_flag_ident = Some(ident);
-            }
+        let active_flag = column.active_flag;
+        if active_flag && !has_active_flag {
+            has_active_flag = true;
+            active = Some((column.name, ident));
+        } else if active_flag && has_active_flag {
+            panic!("A table cannot contain more than one active flag");
         }
     }
-    let mut traits = quote! {};
+    let mut traits = quote!{};
     let dbmodel_trait = quote! {
         impl worm::traits::dbmodel::DbModel for #name {
             const DB: &'static str = #db;
@@ -82,18 +84,20 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
             }
         }
     };
-    traits.append_all(dbmodel_trait);
-    if !bool_flag_ident.is_some() && !columns.contains(&name.to_string()) {
-        let bool_flag_ident_res = bool_flag_ident.unwrap();
-        let boolflag_trait = quote! {
-            //impl worm::traits::activeflag::ActiveFlag for #name {
-            //    const ACTIVE: &'static str = #bool_flag;
-            //    fn get_active(&self) -> bool {
-            //        return self.#bool_flag_ident_res;
-            //    }
-            //}
+    dbmodel_trait.to_tokens(&mut traits);
+    if active.is_some() {
+        let active_res = active.unwrap();
+        let value = active_res.0;
+        let key = active_res.1;
+        let activeflag_trait = quote! {
+            impl worm::traits::activeflag::ActiveFlag for #name {
+                const ACTIVE: &'static str = #value;
+                fn get_active(&self) -> bool {
+                    return self.#key;
+                }
+            }
         };
-        traits.append_all(boolflag_trait);
+        activeflag_trait.to_tokens(&mut traits);
     }
     traits.into()
 }
