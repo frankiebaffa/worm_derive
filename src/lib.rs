@@ -7,38 +7,46 @@ use {
         ToTokens,
     },
     proc_macro::TokenStream,
-    quote::quote,
+    quote::{
+        format_ident,
+        quote
+    },
     syn::{
         DeriveInput,
         parse_macro_input,
 
     },
 };
+#[derive(Default, FromMeta)]
+struct WormDbVar {
+    name: String,
+}
 #[derive(FromDeriveInput)]
-#[darling(attributes(wormdb))]
+#[darling(attributes(db))]
 struct WormDbOpts {
     ident: syn::Ident,
+    var: WormDbVar,
 }
-#[proc_macro_derive(WormDb)]
+#[proc_macro_derive(WormDb, attributes(db))]
 pub fn derive_wormdb(input: TokenStream) -> TokenStream {
+    let d_input = parse_macro_input!(input as DeriveInput);
+    let wormdb = WormDbOpts::from_derive_input(&d_input).unwrap();
     match dotenv::dotenv() {
         Ok(_) => {},
         Err(_) => {},
     }
-    let dbs = match std::env::var("WORMDBS") {
+    let dbs = match std::env::var(&wormdb.var.name) {
         Ok(dbs) => dbs,
-        Err(_) => panic!("Failed to construct wormdb, environment variable WORMDBS not found"),
+        Err(_) => panic!("Failed to construct wormdb, environment variable {} not found", &wormdb.var.name),
     };
-    let d_input = parse_macro_input!(input as DeriveInput);
-    let wormdb = WormDbOpts::from_derive_input(&d_input).unwrap();
     let db_split = dbs.split(",");
     let mut names = Vec::new();
     let mut paths = Vec::new();
     for mut db_data in db_split {
         db_data = db_data.trim();
         let mut name_path = db_data.split("@");
-        let name = name_path.nth(0).expect("Failed to get name of wormdb, environment variable is in improper format");
-        let path = name_path.nth(0).expect("Failed to get path of wormdb, environment variable is in improper format");
+        let name = name_path.nth(0).expect("Failed to get name of wormdb, environment variable value is in improper format");
+        let path = name_path.nth(0).expect("Failed to get path of wormdb, environment variable value is in improper format");
         names.push(name.trim().to_string());
         paths.push(path.trim().to_string())
     }
@@ -75,6 +83,7 @@ struct DbModelColumn {
 struct DbModelColumnOpts {
     column: DbModelColumn,
     ident: Option<syn::Ident>,
+    ty: syn::Type,
 }
 #[derive(Default, FromMeta)]
 struct DbModelTable {
@@ -108,7 +117,9 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
     let mut pk = None;
     let mut unique_name = None;
     let mut foreign_keys = Vec::new();
+    let mut normal_columns = Vec::new();
     for field in data {
+        let mut has_special_binding = false;
         let ident = field.ident.unwrap();
         let column = field.column;
         let var = ident.to_token_stream();
@@ -121,28 +132,48 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         if active_flag && !has_active_flag {
             has_active_flag = true;
             active = Some((column.name.clone(), ident.clone()));
+            has_special_binding = true;
         } else if active_flag && has_active_flag {
             panic!("A table cannot contain more than one active flag");
         }
         if primary_key && !has_primary_key {
             has_primary_key = true;
             pk = Some((column.name.clone(), ident.clone()));
+            has_special_binding = true;
         } else if primary_key && has_primary_key {
             panic!("A table cannot contain more than one primary key");
         }
         if uniquename && !has_unique_name {
             has_unique_name = true;
             unique_name = Some((column.name.clone(), ident.clone()));
+            has_special_binding = true;
         } else if uniquename && has_unique_name {
             panic!("A table cannot contain more than one unique name");
         }
         let foreign_key = column.foreign_key.clone();
         if !foreign_key.is_empty() {
             let refr = syn::Ident::from_string(&foreign_key.clone()).unwrap();
-            foreign_keys.push((column.name, refr, ident));
+            foreign_keys.push((column.name, refr, ident.clone()));
+            has_special_binding = true;
+        }
+        if !has_special_binding {
+            normal_columns.push((ident, field.ty));
         }
     }
     let mut traits = quote!{};
+    for col in normal_columns {
+        let col_ident = col.0;
+        let fn_name = format_ident!("get_{}", col_ident);
+        let col_type = col.1;
+        let standard_col_trait = quote! {
+            impl #name {
+                pub fn #fn_name(&self) -> &#col_type {
+                    return &self.#col_ident;
+                }
+            }
+        };
+        standard_col_trait.to_tokens(&mut traits);
+    }
     let dbmodel_trait = quote! {
         impl worm::traits::dbmodel::DbModel for #name {
             const DB: &'static str = #db;
