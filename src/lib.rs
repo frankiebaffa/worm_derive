@@ -305,7 +305,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         }
         let insert_function = quote! {
             impl #name {
-                fn insert_new(db: &mut #db_ident, #(#insertable_idents: #insertable_types, )*) -> Result<Self, rusqlite::Error> {
+                pub fn insert_new(db: &mut #db_ident, #(#insertable_idents: #insertable_types, )*) -> Result<Self, rusqlite::Error> {
                     use worm::traits::primarykey::PrimaryKeyModel;
                     use worm::traits::dbctx::DbCtx;
                     let sql = format!(
