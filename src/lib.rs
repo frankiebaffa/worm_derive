@@ -167,8 +167,8 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         let col_type = col.1;
         let standard_col_trait = quote! {
             impl #name {
-                pub fn #fn_name(&self) -> &#col_type {
-                    return &self.#col_ident;
+                pub fn #fn_name(&self) -> #col_type {
+                    return self.#col_ident.clone();
                 }
             }
         };
