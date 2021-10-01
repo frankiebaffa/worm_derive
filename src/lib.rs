@@ -96,6 +96,10 @@ struct DbModelColumn {
     unique_name: bool,
     #[darling(default)]
     foreign_key: String,
+    #[darling(default)]
+    insertable: bool,
+    #[darling(default)]
+    null: bool,
 }
 #[derive(FromField)]
 #[darling(attributes(dbcolumn))]
@@ -140,6 +144,10 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
     let mut unique_name = None;
     let mut foreign_keys = Vec::new();
     let mut normal_columns = Vec::new();
+    let mut insertable_params = Vec::new();
+    let mut insertable_idents = Vec::new();
+    let mut insertable_types = Vec::new();
+    let mut insertable_columns = Vec::new();
     for field in data {
         let mut has_special_binding = false;
         let ident = field.ident.unwrap();
@@ -151,6 +159,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         let active_flag = column.active_flag;
         let primary_key = column.primary_key;
         let uniquename = column.unique_name;
+        let is_insertable = column.insertable;
         if active_flag && !has_active_flag {
             has_active_flag = true;
             active = Some((column.name.clone(), ident.clone()));
@@ -175,11 +184,19 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         let foreign_key = column.foreign_key.clone();
         if !foreign_key.is_empty() {
             let refr = syn::Ident::from_string(&foreign_key.clone()).unwrap();
-            foreign_keys.push((column.name, refr, ident.clone()));
+            foreign_keys.push((column.name.clone(), refr, ident.clone()));
             has_special_binding = true;
         }
         if !has_special_binding {
-            normal_columns.push((ident, field.ty));
+            normal_columns.push((ident.clone(), field.ty.clone()));
+        }
+        if is_insertable {
+            let ident_cl = ident.clone();
+            let ident_str = ident_cl.to_string();
+            insertable_params.push(ident_str);
+            insertable_idents.push(ident);
+            insertable_types.push(field.ty);
+            insertable_columns.push(column.name);
         }
     }
     let mut traits = quote!{};
@@ -272,6 +289,45 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
             }
         };
         foreignkey_trait.to_tokens(&mut traits);
+    }
+    if insertable_idents.len() > 0 {
+        let mut column_names = String::new();
+        let mut dlim = String::new();
+        for column in insertable_columns {
+            column_names.push_str(&format!("{}{}", dlim, column));
+            dlim = String::from(", ");
+        }
+        let mut param_names = String::new();
+        dlim = String::new();
+        for param in insertable_params.clone() {
+            param_names.push_str(&format!("{}{}", dlim, param));
+            dlim = String::from(", ");
+        }
+        let insert_function = quote! {
+            impl #name {
+                fn insert_new(db: &mut #db_ident, #(#insertable_idents: #insertable_types, )*) -> Result<Self, rusqlite::Error> {
+                    use worm::traits::primarykey::PrimaryKeyModel;
+                    use worm::traits::dbctx::DbCtx;
+                    let sql = format!(
+                        "insert into {}.{} ( {} ) values ( {} );",
+                        #schema, #table, #column_names, #param_names
+                    );
+                    let c = db.use_connection();
+                    let id;
+                    {
+                        let mut tx = c.transaction()?;
+                        {
+                            let sp = tx.savepoint()?;
+                            let params = rusqlite::named_params!{#(#insertable_params: #insertable_idents, )*};
+                            sp.execute(&sql, params)?;
+                            id = sp.last_insert_rowid();
+                        }
+                    }
+                    return Self::get_by_id(c, id);
+                }
+            }
+        };
+        insert_function.to_tokens(&mut traits);
     }
     traits.into()
 }
