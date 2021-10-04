@@ -188,31 +188,18 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
             has_special_binding = true;
         }
         if !has_special_binding {
-            normal_columns.push((ident.clone(), field.ty.clone()));
+            normal_columns.push((ident.clone(), field.ty.clone(), column.name.clone()));
         }
         if is_insertable {
             let ident_cl = ident.clone();
             let ident_str = ident_cl.to_string();
-            insertable_params.push(ident_str);
+            insertable_params.push(format!(":{}", ident_str));
             insertable_idents.push(ident);
             insertable_types.push(field.ty);
             insertable_columns.push(column.name);
         }
     }
     let mut traits = quote!{};
-    for col in normal_columns {
-        let col_ident = col.0;
-        let fn_name = format_ident!("get_{}", col_ident);
-        let col_type = col.1;
-        let standard_col_trait = quote! {
-            impl #name {
-                pub fn #fn_name(&self) -> #col_type {
-                    return self.#col_ident.clone();
-                }
-            }
-        };
-        standard_col_trait.to_tokens(&mut traits);
-    }
     let attached_db_type = format_ident!("{}", schema);
     let attached_enum = format_ident!("AttachedTo{}", db);
     let dbmodel_trait = quote! {
@@ -312,22 +299,61 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
                         "insert into {}.{} ( {} ) values ( {} );",
                         #schema, #table, #column_names, #param_names
                     );
-                    let c = db.use_connection();
                     let id;
                     {
-                        let mut tx = c.transaction()?;
+                        let c = db.use_connection();
                         {
-                            let sp = tx.savepoint()?;
-                            let params = rusqlite::named_params!{#(#insertable_params: #insertable_idents, )*};
-                            sp.execute(&sql, params)?;
-                            id = sp.last_insert_rowid();
+                            let mut tx = c.transaction()?;
+                            {
+                                let sp = tx.savepoint()?;
+                                let params = rusqlite::named_params!{#(#insertable_params: #insertable_idents, )*};
+                                sp.execute(&sql, params)?;
+                                id = sp.last_insert_rowid();
+                                sp.commit()?;
+                            }
+                            tx.commit()?;
                         }
                     }
-                    return Self::get_by_id(c, id);
+                    return Self::get_by_id(db, id);
                 }
             }
         };
         insert_function.to_tokens(&mut traits);
+    }
+    for col in normal_columns {
+        let col_ident = col.0;
+        let fn_name = format_ident!("get_{}", col_ident);
+        let get_all_name = format_ident!("get_all_by_{}", col_ident);
+        let col_param = format!(":{}", col_ident);
+        let col_type = col.1;
+        let col_name = col.2;
+        let standard_col_trait = quote! {
+            impl #name {
+                pub fn #fn_name(&self) -> #col_type {
+                    return self.#col_ident.clone();
+                }
+                pub fn #get_all_name(db: &mut #db_ident, #col_ident: #col_type) -> Result<Vec<#name>, rusqlite::Error> {
+                    use worm::traits::{dbctx::DbCtx, dbmodel::DbModel};
+                    let sql = format!(
+                        "select {}.* from {}.{} as {} where {}.{} = {}",
+                        #name::ALIAS, #name::DB, #name::TABLE, #name::ALIAS, #name::ALIAS, #col_name, #col_param
+                    );
+                    let c = db.use_connection();
+                    let mut stmt = c.prepare(&sql)?;
+                    let params = rusqlite::named_params!{ #col_param: #col_ident };
+                    let res: Vec<Result<#name, rusqlite::Error>> = stmt.query_map(params, |row| {
+                        #name::from_row(&row)
+                    })?.collect();
+                    let mut items = Vec::new();
+                    for item in res {
+                        let i = item?;
+                        items.push(i);
+                    }
+                    return Ok(items);
+                }
+            }
+        };
+        standard_col_trait.to_tokens(&mut traits);
     }
     traits.into()
 }
