@@ -1,4 +1,3 @@
-static ENV_FILE: &'static str = concat!(env!("CARGO_MANIFEST_DIR"), "/.env");
 use {
     darling::{
         ast,
@@ -32,7 +31,7 @@ struct WormDbOpts {
 pub fn derive_wormdb(input: TokenStream) -> TokenStream {
     let d_input = parse_macro_input!(input as DeriveInput);
     let wormdb = WormDbOpts::from_derive_input(&d_input).unwrap();
-    dotenv::from_filename(ENV_FILE).ok();
+    dotenv::from_path(concat!(env!("CARGO_MANIFEST_DIR"), "/.env")).ok();
     let dbs = match std::env::var(&wormdb.var.name) {
         Ok(dbs) => dbs,
         Err(_) => panic!("Failed to construct wormdb, environment variable {} not found", &wormdb.var.name),
