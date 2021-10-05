@@ -1,6 +1,10 @@
 [lib]
 proc-macro = true
 
+[[bin]]
+name = "test_lib"
+path = "./src/bin/test_lib.rs"
+
 [package]
 name = "worm_derive"
 version = "0.1.0"
@@ -11,3 +15,5 @@ darling = "0.13"
 dotenv = "0.15"
 quote = "1"
 syn = "1"
+rusqlite = { version = "0.25", features = [ "bundled", "chrono" ] }
+worm = { git = "https://github.com/frankiebaffa/worm", branch = "master" }

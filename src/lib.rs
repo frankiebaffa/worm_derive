@@ -1,4 +1,3 @@
-static ENV_PATH: &'static str = concat!(env!("CARGO_MANIFEST_DIR"), "/.env");
 use {
     darling::{
         ast,
@@ -31,10 +30,10 @@ struct WormDbOpts {
 pub fn derive_wormdb(input: TokenStream) -> TokenStream {
     let d_input = parse_macro_input!(input as DeriveInput);
     let wormdb = WormDbOpts::from_derive_input(&d_input).unwrap();
-    dotenv::from_path(ENV_PATH).ok();
+    dotenv::dotenv().ok();
     let dbs = match std::env::var(&wormdb.var.name) {
         Ok(dbs) => dbs,
-        Err(_) => panic!("Failed to construct wormdb, environment variable {} not found in config at {}", &wormdb.var.name, ENV_PATH),
+        Err(_) => panic!("Failed to construct wormdb, environment variable {} not found", &wormdb.var.name),
     };
     let db_split = dbs.split(",");
     let mut names = Vec::new();
@@ -280,8 +279,8 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
             dlim = String::from(", ");
         }
         let insert_function = quote! {
-            impl<T: DbCtx> #name {
-                pub fn insert_new(db: &mut T, #(#insertable_idents: #insertable_types, )*) -> Result<Self, rusqlite::Error> {
+            impl #name {
+                pub fn insert_new(db: &mut impl worm::traits::dbctx::DbCtx, #(#insertable_idents: #insertable_types, )*) -> Result<Self, rusqlite::Error> {
                     use worm::traits::primarykey::PrimaryKeyModel;
                     use worm::traits::dbctx::DbCtx;
                     let sql = format!(
@@ -317,11 +316,11 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         let col_type = col.1;
         let col_name = col.2;
         let standard_col_trait = quote! {
-            impl<T: DbCtx> #name {
+            impl #name {
                 pub fn #fn_name(&self) -> #col_type {
                     return self.#col_ident.clone();
                 }
-                pub fn #get_all_name(db: &mut T, #col_ident: #col_type) -> Result<Vec<#name>, rusqlite::Error> {
+                pub fn #get_all_name(db: &mut impl worm::traits::dbctx::DbCtx, #col_ident: #col_type) -> Result<Vec<#name>, rusqlite::Error> {
                     use worm::traits::{dbctx::DbCtx, dbmodel::DbModel};
                     let sql = format!(
                         "select {}.* from {}.{} as {} where {}.{} = {}",
