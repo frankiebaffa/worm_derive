@@ -1,4 +1,4 @@
-static ENV_PATH: &'static str = env!("CARGO_MANIFEST_DIR");
+static ENV_PATH: &'static str = concat!(env!("CARGO_MANIFEST_DIR"), "/.env");
 use {
     darling::{
         ast,
