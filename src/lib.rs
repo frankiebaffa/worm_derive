@@ -31,10 +31,6 @@ struct WormDbOpts {
 pub fn derive_wormdb(input: TokenStream) -> TokenStream {
     let d_input = parse_macro_input!(input as DeriveInput);
     let wormdb = WormDbOpts::from_derive_input(&d_input).unwrap();
-    match dotenv::dotenv() {
-        Ok(_) => {},
-        Err(_) => {},
-    }
     let dbs = match std::env::var(&wormdb.var.name) {
         Ok(dbs) => dbs,
         Err(_) => panic!("Failed to construct wormdb, environment variable {} not found", &wormdb.var.name),
