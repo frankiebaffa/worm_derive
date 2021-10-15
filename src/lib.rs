@@ -308,6 +308,17 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         };
         insert_function.to_tokens(&mut traits);
     }
+    let mut column_consts = Vec::new();
+    columns.clone().into_iter().for_each(|column| {
+        column_consts.push(format_ident!("{}", column.to_uppercase()));
+    });
+    let col_names = columns.clone();
+    let all_columns_const = quote! {
+        impl #name {
+            #(const #column_consts: &'static str = #col_names;)*
+        }
+    };
+    all_columns_const.to_tokens(&mut traits);
     for col in normal_columns {
         let col_ident = col.0;
         let fn_name = format_ident!("get_{}", col_ident);
