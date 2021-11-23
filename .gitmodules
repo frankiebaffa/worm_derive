@@ -1,4 +1,0 @@
-[submodule "worm"]
-	path = worm
-	url = https://github.com/frankiebaffa/worm
-	branch = master
