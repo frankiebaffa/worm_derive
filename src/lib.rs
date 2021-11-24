@@ -57,17 +57,17 @@ pub fn derive_wormdb(input: TokenStream) -> TokenStream {
         pub enum #enum_ident {
             #(#db_name_idents,)*
         }
-        impl worm::traits::dbmodel::AttachedDbType for #enum_ident {
+        impl worm_core::traits::dbmodel::AttachedDbType for #enum_ident {
             fn get_name(&self) -> String {
                 return match self {
                     _ => format!("{:?}", self),
                 };
             }
         }
-        impl worm::traits::dbctx::DbCtx for #ident {
+        impl worm_core::traits::dbctx::DbCtx for #ident {
             fn init() -> #ident {
-                use worm::structs::database::DbContext as WormContext;
-                use worm::structs::database::DbObject as WormObject;
+                use worm_core::structs::database::DbContext as WormContext;
+                use worm_core::structs::database::DbObject as WormObject;
                 use rusqlite::Connection as WormConnection;
                 let mut c = WormConnection::open(":memory:").unwrap();
                 let dbs = vec![ #(WormObject::new(#paths, #names), )*];
@@ -194,12 +194,12 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
     }
     let mut traits = quote!{};
     let dbmodel_trait = quote! {
-        impl worm::traits::dbmodel::DbModel for #name {
+        impl worm_core::traits::dbmodel::DbModel for #name {
             const DB: &'static str = #schema;
             const TABLE: &'static str = #table;
             const ALIAS: &'static str = #alias;
             fn from_row(row: &rusqlite::Row) -> Result<#name, rusqlite::Error>{
-                use worm::traits::helpers::ColumnValue;
+                use worm_core::traits::helpers::ColumnValue;
                 #(let #idents = row.value(&#columns)?;)*
                 return Ok(#name { #(#idents: #idents, )*});
             }
@@ -211,7 +211,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         let value = active_res.0;
         let key = active_res.1;
         let activeflag_trait = quote! {
-            impl worm::traits::activeflag::ActiveFlag for #name {
+            impl worm_core::traits::activeflag::ActiveFlag for #name {
                 const ACTIVE: &'static str = #value;
                 fn get_active(&self) -> bool {
                     return self.#key;
@@ -225,7 +225,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         let value = pk_res.0;
         let key = pk_res.1;
         let primarykey_trait = quote! {
-            impl worm::traits::primarykey::PrimaryKey for #name {
+            impl worm_core::traits::primarykey::PrimaryKey for #name {
                 const PRIMARY_KEY: &'static str = #value;
                 fn get_id(&self) -> i64 {
                     return self.#key;
@@ -239,7 +239,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         let value = uname_res.0;
         let key = uname_res.1;
         let uniquename_trait = quote! {
-            impl worm::traits::uniquename::UniqueName for #name {
+            impl worm_core::traits::uniquename::UniqueName for #name {
                 const NAME: &'static str = #value;
                 fn get_name(&self) -> String {
                     return self.#key.clone();
@@ -255,7 +255,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         let type_ = foreign_key_item.1;
         let ident = foreign_key_item.2;
         let foreignkey_trait = quote! {
-            impl worm::traits::foreignkey::ForeignKey<#type_> for #name {
+            impl worm_core::traits::foreignkey::ForeignKey<#type_> for #name {
                 const FOREIGN_KEY: &'static str = #column_name;
                 const FOREIGN_KEY_PARAM: &'static str = #param;
                 fn get_fk_value(&self) -> i64 {
@@ -280,9 +280,9 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         }
         let insert_function = quote! {
             impl #name {
-                pub fn insert_new(db: &mut impl worm::traits::dbctx::DbCtx, #(#insertable_idents: #insertable_types, )*) -> Result<Self, rusqlite::Error> {
-                    use worm::traits::primarykey::PrimaryKeyModel;
-                    use worm::traits::dbctx::DbCtx;
+                pub fn insert_new(db: &mut impl worm_core::traits::dbctx::DbCtx, #(#insertable_idents: #insertable_types, )*) -> Result<Self, rusqlite::Error> {
+                    use worm_core::traits::primarykey::PrimaryKeyModel;
+                    use worm_core::traits::dbctx::DbCtx;
                     let sql = format!(
                         "insert into {}.{} ( {} ) values ( {} );",
                         #schema, #table, #column_names, #param_names
@@ -331,8 +331,8 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
                 pub fn #fn_name(&self) -> #col_type {
                     return self.#col_ident.clone();
                 }
-                pub fn #get_all_name(db: &mut impl worm::traits::dbctx::DbCtx, #col_ident: #col_type) -> Result<Vec<#name>, rusqlite::Error> {
-                    use worm::traits::{dbctx::DbCtx, dbmodel::DbModel};
+                pub fn #get_all_name(db: &mut impl worm_core::traits::dbctx::DbCtx, #col_ident: #col_type) -> Result<Vec<#name>, rusqlite::Error> {
+                    use worm_core::traits::{dbctx::DbCtx, dbmodel::DbModel};
                     let sql = format!(
                         "select {}.* from {}.{} as {} where {}.{} = {}",
                         #name::ALIAS, #name::DB, #name::TABLE, #name::ALIAS, #name::ALIAS, #col_name, #col_param
