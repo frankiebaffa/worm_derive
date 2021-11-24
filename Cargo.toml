@@ -11,5 +11,4 @@ darling = "0.13"
 dotenv = "0.15"
 quote = "1"
 syn = "1"
-rusqlite = { version = "0.25", features = [ "bundled", "chrono" ] }
 worm_core = { git = "https://github.com/frankiebaffa/worm_core" }
