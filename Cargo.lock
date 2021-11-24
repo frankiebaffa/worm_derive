@@ -313,8 +313,8 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
 name = "worm_core"
-version = "0.1.0"
-source = "git+https://github.com/frankiebaffa/worm_core#81b18dcc485f514bcb57543b608ebe3984f73104"
+version = "0.1.1"
+source = "git+https://github.com/frankiebaffa/worm_core#8ef6393384bd0db777c7f2718c604878170bd3c6"
 dependencies = [
  "rusqlite",
 ]

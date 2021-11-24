@@ -4,7 +4,7 @@ proc-macro = true
 [package]
 name = "worm_derive"
 version = "0.1.1"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 darling = "0.13"
