@@ -323,7 +323,6 @@ dependencies = [
 name = "worm_derive"
 version = "0.1.1"
 dependencies = [
- "chrono",
  "darling",
  "dotenv",
  "quote",

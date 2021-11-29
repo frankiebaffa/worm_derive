@@ -312,7 +312,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
             full_idents.push(ident);
         }
         for _ in utc_now_params.clone() {
-            let now_ident = syn::Ident::from_string("chrono::Utc::now()").unwrap();
+            let now_ident = syn::Ident::from_string("__utc_now").unwrap();
             full_idents.push(now_ident);
         }
         let insert_function = quote! {
@@ -331,6 +331,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
                             let mut tx = c.transaction()?;
                             {
                                 let sp = tx.savepoint()?;
+                                let __utc_now = chrono::Utc::now();
                                 let params = worm::core::sql::named_params!{#(#full_params: #full_idents, )*};
                                 sp.execute(&sql, params)?;
                                 id = sp.last_insert_rowid();
