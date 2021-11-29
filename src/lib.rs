@@ -95,6 +95,8 @@ struct DbModelColumn {
     #[darling(default)]
     insertable: bool,
     #[darling(default)]
+    utc_now: bool,
+    #[darling(default)]
     null: bool,
 }
 #[derive(FromField)]
@@ -141,6 +143,8 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
     let mut insertable_idents = Vec::new();
     let mut insertable_types = Vec::new();
     let mut insertable_columns = Vec::new();
+    let mut utc_now_params = Vec::new();
+    let mut utc_now_columns = Vec::new();
     for field in data {
         let mut has_special_binding = false;
         let ident = field.ident.unwrap();
@@ -153,6 +157,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         let primary_key = column.primary_key;
         let uniquename = column.unique_name;
         let is_insertable = column.insertable;
+        let is_utc_now = column.utc_now;
         if active_flag && !has_active_flag {
             has_active_flag = true;
             active = Some((column.name.clone(), ident.clone()));
@@ -184,12 +189,21 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
             normal_columns.push((ident.clone(), field.ty.clone(), column.name.clone()));
         }
         if is_insertable {
-            let ident_cl = ident.clone();
-            let ident_str = ident_cl.to_string();
-            insertable_params.push(format!(":{}", ident_str));
-            insertable_idents.push(ident);
-            insertable_types.push(field.ty);
-            insertable_columns.push(column.name);
+            if !is_utc_now {
+                let ident_cl = ident.clone();
+                let ident_str = ident_cl.to_string();
+                insertable_params.push(format!(":{}", ident_str));
+                insertable_idents.push(ident);
+                insertable_types.push(field.ty);
+                insertable_columns.push(column.name);
+            } else {
+                let ident_cl = ident.clone();
+                let ident_str = ident_cl.to_string();
+                utc_now_params.push(format!(":{}", ident_str));
+                utc_now_columns.push(column.name);
+            }
+        } else if !is_insertable && is_utc_now {
+            panic!("A column containing the utc_now property must be insertable");
         }
     }
     let mut traits = quote!{};
@@ -272,11 +286,34 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
             column_names.push_str(&format!("{}{}", dlim, column));
             dlim = String::from(", ");
         }
+        for column in utc_now_columns {
+            column_names.push_str(&format!("{}{}", dlim, column));
+            dlim = String::from(", ");
+        }
         let mut param_names = String::new();
         dlim = String::new();
         for param in insertable_params.clone() {
             param_names.push_str(&format!("{}{}", dlim, param));
             dlim = String::from(", ");
+        }
+        for param in utc_now_params.clone() {
+            param_names.push_str(&format!("{}{}", dlim, param));
+            dlim = String::from(", ");
+        }
+        let mut full_params = Vec::new();
+        for param in insertable_params.clone() {
+            full_params.push(param);
+        }
+        for param in utc_now_params.clone() {
+            full_params.push(param);
+        }
+        let mut full_idents = Vec::new();
+        for ident in insertable_idents.clone() {
+            full_idents.push(ident);
+        }
+        for _ in utc_now_params.clone() {
+            let now_ident = syn::Ident::from_string("chrono::Utc::now()").unwrap();
+            full_idents.push(now_ident);
         }
         let insert_function = quote! {
             impl #name {
@@ -294,7 +331,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
                             let mut tx = c.transaction()?;
                             {
                                 let sp = tx.savepoint()?;
-                                let params = worm::core::sql::named_params!{#(#insertable_params: #insertable_idents, )*};
+                                let params = worm::core::sql::named_params!{#(#full_params: #full_idents, )*};
                                 sp.execute(&sql, params)?;
                                 id = sp.last_insert_rowid();
                                 sp.commit()?;
