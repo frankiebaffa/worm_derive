@@ -279,7 +279,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         };
         foreignkey_trait.to_tokens(&mut traits);
     }
-    if insertable_idents.len() > 0 {
+    if insertable_idents.len() > 0 || utc_now_params.len() > 0 {
         let mut column_names = String::new();
         let mut dlim = String::new();
         for column in insertable_columns {
