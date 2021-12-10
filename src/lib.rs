@@ -353,7 +353,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
     let col_names = columns.clone();
     let all_columns_const = quote! {
         impl #name {
-            #(const #column_consts: &'static str = #col_names;)*
+            #(pub const #column_consts: &'static str = #col_names;)*
         }
     };
     all_columns_const.to_tokens(&mut traits);
