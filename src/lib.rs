@@ -209,9 +209,9 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
     let mut traits = quote!{};
     let dbmodel_trait = quote! {
         impl worm::core::DbModel for #name {
-            pub const DB: &'static str = #schema;
-            pub const TABLE: &'static str = #table;
-            pub const ALIAS: &'static str = #alias;
+            const DB: &'static str = #schema;
+            const TABLE: &'static str = #table;
+            const ALIAS: &'static str = #alias;
             fn from_row(row: &worm::core::sql::Row) -> Result<#name, worm::core::sql::Error>{
                 use worm::core::ColumnValue;
                 #(let #idents = row.value(&#columns)?;)*
@@ -226,7 +226,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         let key = active_res.1;
         let activeflag_trait = quote! {
             impl worm::core::ActiveFlag for #name {
-                pub const ACTIVE: &'static str = #value;
+                const ACTIVE: &'static str = #value;
                 fn get_active(&self) -> bool {
                     return self.#key;
                 }
@@ -240,7 +240,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         let key = pk_res.1;
         let primarykey_trait = quote! {
             impl worm::core::PrimaryKey for #name {
-                pub const PRIMARY_KEY: &'static str = #value;
+                const PRIMARY_KEY: &'static str = #value;
                 fn get_id(&self) -> i64 {
                     return self.#key;
                 }
@@ -254,7 +254,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         let key = uname_res.1;
         let uniquename_trait = quote! {
             impl worm::core::UniqueName for #name {
-                pub const NAME: &'static str = #value;
+                const NAME: &'static str = #value;
                 fn get_name(&self) -> String {
                     return self.#key.clone();
                 }
@@ -270,8 +270,8 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         let ident = foreign_key_item.2;
         let foreignkey_trait = quote! {
             impl worm::core::ForeignKey<#type_> for #name {
-                pub const FOREIGN_KEY: &'static str = #column_name;
-                pub const FOREIGN_KEY_PARAM: &'static str = #param;
+                const FOREIGN_KEY: &'static str = #column_name;
+                const FOREIGN_KEY_PARAM: &'static str = #param;
                 fn get_fk_value(&self) -> i64 {
                     return self.#ident;
                 }
@@ -353,7 +353,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
     let col_names = columns.clone();
     let all_columns_const = quote! {
         impl #name {
-            #(pub const #column_consts: &'static str = #col_names;)*
+            #(const #column_consts: &'static str = #col_names;)*
         }
     };
     all_columns_const.to_tokens(&mut traits);
