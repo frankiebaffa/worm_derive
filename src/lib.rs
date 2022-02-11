@@ -77,6 +77,15 @@ pub fn derive_wormdb(input: TokenStream) -> TokenStream {
             fn use_connection(&mut self) -> &mut worm::core::sql::Connection {
                 return self.context.use_connection();
             }
+            fn attach_temp_dbs(&mut self) {
+                self.context.attach_temp_dbs();
+            }
+            fn attach_dbs(&mut self) {
+                self.context.attach_dbs();
+            }
+            fn delete_db_files(&mut self) -> Result<(), String> {
+                self.context.delete_db_files()
+            }
         }
     };
     implementation.into()
@@ -96,8 +105,6 @@ struct DbModelColumn {
     insertable: bool,
     #[darling(default)]
     utc_now: bool,
-    #[darling(default)]
-    null: bool,
 }
 #[derive(FromField)]
 #[darling(attributes(dbcolumn))]
