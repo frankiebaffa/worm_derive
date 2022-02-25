@@ -255,30 +255,6 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
         };
         primarykey_trait.to_tokens(&mut traits);
     }
-    if unique_name.is_some() {
-        let uname_res = unique_name.unwrap();
-        let value = uname_res.0;
-        let key = uname_res.1;
-        let uniquename_trait = quote! {
-            impl worm::core::UniqueName for #name {
-                const NAME: &'static str = #value;
-                fn get_name(&self) -> String {
-                    return self.#key.clone();
-                }
-            }
-            impl #name {
-                pub fn get_or_new(db: &mut impl worm::core::DbCtx, #(#insertable_idents: #insertable_types, )*) -> Result<Self, worm::core::sql::Error> {
-                    use worm::core::UniqueNameModel;
-                    match #name::get_by_name(db, &#key) {
-                        Ok(s) => return Ok(s),
-                        Err(_) => {},
-                    }
-                    #name::insert_new(db, #(#insertable_idents, )*)
-                }
-            }
-        };
-        uniquename_trait.to_tokens(&mut traits);
-    }
     for foreign_key_item in foreign_keys {
         let column_name = foreign_key_item.0;
         let mut param = column_name.clone().to_lowercase();
@@ -362,6 +338,31 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
             }
         };
         insert_function.to_tokens(&mut traits);
+    }
+    // due to use of insert_new, must go after insert_function
+    if unique_name.is_some() {
+        let uname_res = unique_name.unwrap();
+        let value = uname_res.0;
+        let key = uname_res.1;
+        let uniquename_trait = quote! {
+            impl worm::core::UniqueName for #name {
+                const NAME: &'static str = #value;
+                fn get_name(&self) -> String {
+                    return self.#key.clone();
+                }
+            }
+            impl #name {
+                pub fn get_or_new(db: &mut impl worm::core::DbCtx, #(#insertable_idents: #insertable_types, )*) -> Result<Self, worm::core::sql::Error> {
+                    use worm::core::UniqueNameModel;
+                    match #name::get_by_name(db, &#key) {
+                        Ok(s) => return Ok(s),
+                        Err(_) => {},
+                    }
+                    #name::insert_new(db, #(#insertable_idents, )*)
+                }
+            }
+        };
+        uniquename_trait.to_tokens(&mut traits);
     }
     let mut column_consts = Vec::new();
     columns.clone().into_iter().for_each(|column| {
