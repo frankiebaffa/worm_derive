@@ -273,7 +273,7 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
                         Ok(s) => return Ok(s),
                         Err(_) => {},
                     }
-                    #name::insert_new(db, #(#insertable_idents)*)
+                    #name::insert_new(db, #(#insertable_idents, )*)
                 }
             }
         };
