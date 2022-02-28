@@ -350,16 +350,6 @@ pub fn derive_dbmodel(input: TokenStream) -> TokenStream {
                     return self.#key.clone();
                 }
             }
-            impl #name {
-                pub fn get_or_new(db: &mut impl worm::core::DbCtx, #(#insertable_idents: #insertable_types, )*) -> Result<Self, worm::core::sql::Error> {
-                    use worm::core::{ PrimaryKeyModel, UniqueNameModel, };
-                    match #name::get_by_name(db, &#key) {
-                        Ok(s) => return Ok(s),
-                        Err(_) => {},
-                    }
-                    #name::insert_new(db, #(#insertable_idents, )*)
-                }
-            }
         };
         uniquename_trait.to_tokens(&mut traits);
     }
